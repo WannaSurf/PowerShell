@@ -7,7 +7,7 @@ param (
 
 $Domain = Get-ADDomain $Domain
 
-function Get-WSADContainer([Microsoft.ActiveDirectory.Management.ADPartition]$Domain){
+function Get-WSADContainer([Microsoft.ActiveDirectory.Management.ADPartition]$Domain){  #AD Structure Navigation.
     Clear-Host
     $Filter = $Domain.DistinguishedName
     while ($true){
