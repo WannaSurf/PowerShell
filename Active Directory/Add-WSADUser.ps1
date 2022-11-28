@@ -7,7 +7,7 @@ param (
 
 $Domain = Get-ADDomain $Domain
 
-function Get-WSADContainer([Microsoft.ActiveDirectory.Management.ADPartition]$Domain){  #AD Structure Navigation.
+function Select-WSOrganizationalUnit([Microsoft.ActiveDirectory.Management.ADPartition]$Domain){  #AD Structure Navigation.
     Clear-Host
     $Filter = $Domain.DistinguishedName
     while ($true){
@@ -55,7 +55,7 @@ function New-WSSamAccountName ([string]$DisplayName) {
     return $SamAccountName
 }
 
-$Path = Get-WSADContainer($Domain)
+$Path = Select-WSOrganizationalUnit($Domain)
 
 if ($null -ne $CSV){
     [System.Object]$CSV = Get-Content $CSV
