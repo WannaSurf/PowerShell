@@ -1,13 +1,38 @@
-﻿[cmdletbinding(SupportsShouldProcess)]
+﻿<#
+  .SYNOPSIS
+  Creates user accounts in your domain.
+
+  .DESCRIPTION
+  The Add-WSADUser.ps1 script creates user accounts.
+  You may specify a CSV file for bulk operations or manually
+  by naviagting in the script's menu. 
+
+  .PARAMETER CSV
+  Specifies the path to the CSV-based input file.
+  CSV file should include mandatory "UserPrincipalName" and "DisplayName"
+  fields.
+
+  .PARAMETER Pass
+  Specifies the password assigned to new accounts.
+
+  .EXAMPLE
+  PS> .\Add-WSADUser.ps1
+
+  .EXAMPLE
+  PS> .\Add-WSADUser.ps1 -CSV C:\Accounts.csv
+
+  .EXAMPLE
+  PS> .\Add-WSADUser.ps1 -CSV C:\Accounts.csv -Pass "password" -WhatIf
+#>
+
+[cmdletbinding(SupportsShouldProcess)]
 param (
     [ValidateScript ({ $_ -is [securestring] -or $_ -is [string]})] $Pass,
     [ValidateScript ({(Test-Path $_) -and (Get-ItemProperty $_).Extension -eq '.csv' })]$CSV = $null,
     [ValidateScript ({Get-ADDomain $_})]$Domain = $(Get-ADDomain)
 )
 
-$Domain = Get-ADDomain $Domain
-
-function Select-WSOrganizationalUnit([Microsoft.ActiveDirectory.Management.ADPartition]$Domain){  #AD Structure Navigation.
+function Select-WSOrganizationalUnit([Microsoft.ActiveDirectory.Management.ADPartition]$Domain){
     Clear-Host
     $Filter = $Domain.DistinguishedName
     while ($true){
@@ -45,7 +70,7 @@ function Select-WSOrganizationalUnit([Microsoft.ActiveDirectory.Management.ADPar
 
         }
     }
-}
+}    #AD Structure Navigation.
 
 function New-WSSamAccountName ([string]$DisplayName) {
     $SamAccountName = $DisplayName.split(" ") 
@@ -53,7 +78,9 @@ function New-WSSamAccountName ([string]$DisplayName) {
     $LastName = $SamAccountName[1]
     $SamAccountName = "$($FirstName[0])$LastName".ToLower()
     return $SamAccountName
-}
+}    #Generates SamAccountName
+
+$Domain = Get-ADDomain $Domain
 
 $Path = Select-WSOrganizationalUnit($Domain)
 
@@ -81,19 +108,27 @@ if ($null -ne $CSV){
     })
     $CSV = ConvertFrom-Csv $CSV
 
-    if ($Headers -contains 'Password' -or $Headers -contains '"Password"') {} else {
+    if ($Headers -contains 'Password' -or $Headers -contains '"Password"' -or $null -ne $Pass) {} else {    #Checking if the password is specified
         $Pass = Read-Host "Enter Password" -AsSecureString 
     }
 
     $CSV.ForEach({
-        if($_.Password.Count -gt 0){ $Pass = $_.Password }
+        if($_.Password.Count -gt 0){
+            $Pass =  ConvertTo-SecureString $_.Password -AsPlainText -Force   #Taking password from CSV 
+        }else{
+            if($null -ne $PSBoundParameters.Pass){ 
+                $Pass = ConvertTo-SecureString $PSBoundParameters.Pass -AsPlainText -Force   #Taking defined $Pass
+            }else{
+                $Pass = Read-Host "Enter missing password for $($_.DisplayName)" -AsSecureString 
+            } 
+        }
         New-ADUser -Name $_.DisplayName -SamAccountName $(New-WSSamAccountName $_.DisplayName) -GivenName $_.DisplayName.split(' ')[0] `
         -SurName $_.DisplayName.split(' ')[1]`
         -UserPrincipalName $_.UserPrincipalName -Path $Path -Enabled:$true `
-        -AccountPassword $Pass -ChangePasswordAtLogon $true  
+        -AccountPassword $Pass -ChangePasswordAtLogon $true 
     })
     return
-}
+}    #CSV procedure
  
 while ($true) {
     Write-Host "`n------------------------"
@@ -105,10 +140,13 @@ while ($true) {
     
     if (!$PSBoundParameters.ContainsKey('Pass')) {
         $Pass = read-host "Enter Password" -AsSecureString
+    }else{
+        ConvertTo-SecureString $PSBoundParameters.Pass -AsPlainText -Force    #Taking defined $Pass
     }
 
     New-ADUser -Name $UserName -SamAccountName (New-WSSamAccountName $UserName) -GivenName $FirstName -SurName $LastName `
     -UserPrincipalName "$(New-WSSamAccountName $UserName)@$($Domain.DNSRoot)" -Path $Path -Enabled:$true `
     -AccountPassword $Pass -ChangePasswordAtLogon $true
-    'Task finished'
-}
+    Write-Host 'Task finished'
+}    #Manual procedure
+return
